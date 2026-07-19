@@ -870,6 +870,36 @@ button {
   font-size: 0.68rem;
 }
 
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 500px);
+  margin: 0 auto 6px;
+}
+
+.board-toolbar > span {
+  color: rgba(232,220,194,0.56);
+  font-family: system-ui, sans-serif;
+  font-size: 0.62rem;
+}
+
+.flag-button {
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 1px solid #725d40;
+  background: rgba(18,18,20,0.82);
+  color: #bca98e;
+  font-size: 0.66rem;
+  touch-action: manipulation;
+}
+
+.flag-button.active {
+  border-color: var(--gold);
+  background: #6f2b23;
+  color: #ffebc7;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -910,10 +940,21 @@ button {
   box-shadow: inset 0 0 10px rgba(61,47,34,0.22);
 }
 
-.cell.enemy {
+.cell.revealed:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
+}
+
+.cell.enemy-cell {
   border-color: #d6ac62;
   background: var(--red);
   color: #fff0d2;
+}
+
+.cell.flagged {
+  border-color: #d0aa5f;
+  background: #3f3227;
+  color: #f1c66f;
 }
 
 .cell.locked {
@@ -924,14 +965,45 @@ button {
   font-size: clamp(0.6rem, 2.6vw, 0.9rem);
 }
 
+.flag-mark {
+  color: #f0c66f;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(1rem, 4.5vw, 1.45rem);
+  text-shadow: 0 2px 2px #17110a;
+}
+
 .hint {
   font-family: system-ui, sans-serif;
-  font-size: clamp(0.9rem, 4vw, 1.35rem);
+  font-size: clamp(1.15rem, 5vw, 1.6rem);
   font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.42);
 }
 
 .hint-1 .hint {
-  color: #9b2d24;
+  color: #1768c4;
+}
+
+.hint-2 .hint {
+  color: #168047;
+}
+
+.hint-3 .hint {
+  color: #c22f2a;
+}
+
+.hint-4 .hint,
+.hint-5 .hint,
+.hint-6 .hint,
+.hint-7 .hint,
+.hint-8 .hint {
+  color: #35275f;
+}
+
+.hint-zero {
+  display: block;
+  width: 1px;
+  height: 1px;
 }
 
 .enemy-mon {
@@ -1017,6 +1089,16 @@ button {
 
 .result-panel .sengoku-button {
   width: 100%;
+}
+
+.inspect-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  border: 1px solid #75644e;
+  background: transparent;
+  color: #4d4032;
+  font-weight: 800;
 }
 
 @media (max-height: 720px) {

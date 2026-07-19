@@ -7,9 +7,9 @@ import {
   MAX_MORALE,
   TAKEDA_MAX_TROOPS,
   TAKEDA_WARRIORS,
-  adjacentEnemyCount,
   createBattle,
   openCell,
+  toggleFlag,
   type BattleState,
 } from "./game-logic";
 
@@ -18,6 +18,8 @@ type Screen = "title" | "chapter" | "stages" | "battle";
 interface AppState {
   screen: Screen;
   battle: BattleState | null;
+  flagMode: boolean;
+  resultDismissed: boolean;
 }
 
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -25,6 +27,8 @@ const app = document.querySelector<HTMLElement>("#app")!;
 const state: AppState = {
   screen: "title",
   battle: null,
+  flagMode: false,
+  resultDismissed: false,
 };
 
 const takedaBishi = `
@@ -189,7 +193,14 @@ function renderBattle(): void {
 
       <div class="battle-instruction">
         <strong>${battle.result ? resultInstruction(battle.result) : "未開封マスを選べ"}</strong>
-        <span>安全マスは攻撃、敵マスは千野頼満の反撃</span>
+        <span>${battle.firstMovePending ? "最初の一手は必ず安全" : "安全マスは攻撃、敵マスは千野頼満の反撃"}</span>
+      </div>
+
+      <div class="board-toolbar">
+        <span>敵マス × 3</span>
+        <button class="flag-button ${state.flagMode ? "active" : ""}" data-action="toggle-flag-mode">
+          ⚑ 旗モード ${state.flagMode ? "ON" : "OFF"}
+        </button>
       </div>
 
       <div class="board" role="grid" aria-label="6×6の戦場">
@@ -207,7 +218,7 @@ function renderBattle(): void {
       </section>
 
       <p class="formula">通常損害 = max(10, round((攻撃 − 防御 ＋ 50) × 0.9〜1.1))</p>
-      ${battle.result ? resultModal(battle) : ""}
+      ${battle.result && !state.resultDismissed ? resultModal(battle) : ""}
     </section>
   `;
 }
@@ -254,21 +265,28 @@ function warriorCard(
 function cellMarkup(index: number, battle: BattleState): string {
   const revealed = battle.revealed.has(index);
   const enemy = battle.enemyIndices.has(index);
+  const flagged = battle.flagged.has(index);
   const classes = ["cell"];
   let label = `${Math.floor(index / BOARD_SIZE) + 1}行${(index % BOARD_SIZE) + 1}列 未開封`;
   let content = '<span class="cell-mark">◆</span>';
 
-  if (revealed) {
+  if (flagged && !revealed) {
+    classes.push("flagged");
+    label = `${Math.floor(index / BOARD_SIZE) + 1}行${(index % BOARD_SIZE) + 1}列 旗マス`;
+    content = '<span class="flag-mark">⚑</span>';
+  } else if (revealed) {
     classes.push("revealed");
     if (enemy) {
       classes.push("enemy-cell");
       label = "開封済みの敵マス 千野頼満";
       content = '<span class="enemy-mon">千野</span>';
     } else {
-      const count = adjacentEnemyCount(index, battle.enemyIndices);
+      const count = battle.adjacentCounts[index];
       classes.push(`hint-${count}`);
       label = count === 0 ? "開封済みの安全マス 周囲の敵0" : `開封済みの安全マス 周囲の敵${count}`;
-      content = `<span class="hint">${count}</span>`;
+      content = count === 0
+        ? '<span class="hint hint-zero" aria-hidden="true"></span>'
+        : `<span class="hint">${count}</span>`;
     }
   }
 
@@ -303,6 +321,7 @@ function resultModal(battle: BattleState): string {
         <button class="sengoku-button primary" data-action="${victory ? "stages" : "restart"}">
           ${victory ? "戦場選択へ" : "再戦する"}
         </button>
+        <button class="inspect-button" data-action="inspect-board">盤面を確認</button>
       </div>
     </div>
   `;
@@ -310,6 +329,8 @@ function resultModal(battle: BattleState): string {
 
 function startBattle(): void {
   state.battle = createBattle();
+  state.flagMode = false;
+  state.resultDismissed = false;
   state.screen = "battle";
   render();
 }
@@ -326,6 +347,12 @@ app.addEventListener("click", (event) => {
       render();
     } else if (action === "start-battle" || action === "restart") {
       startBattle();
+    } else if (action === "toggle-flag-mode") {
+      state.flagMode = !state.flagMode;
+      render();
+    } else if (action === "inspect-board") {
+      state.resultDismissed = true;
+      render();
     }
     return;
   }
@@ -333,6 +360,11 @@ app.addEventListener("click", (event) => {
   const cell = target.closest<HTMLElement>("[data-cell]");
   if (!cell || !state.battle) return;
   const index = Number(cell.dataset.cell);
+  if (state.flagMode) {
+    state.battle = toggleFlag(state.battle, index);
+    render();
+    return;
+  }
   const outcome = openCell(state.battle, index);
   if (outcome.events.length === 0) return;
   state.battle = outcome.battle;

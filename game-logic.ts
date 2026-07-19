@@ -48,6 +48,9 @@ export interface BattleEvent {
 export interface BattleState {
   enemyIndices: ReadonlySet<number>;
   revealed: ReadonlySet<number>;
+  flagged: ReadonlySet<number>;
+  adjacentCounts: readonly number[];
+  firstMovePending: boolean;
   takedaTroops: number;
   enemyTroops: number;
   attackerIndex: number;
@@ -83,6 +86,9 @@ export function createBattle(
   return {
     enemyIndices: uniqueIndices,
     revealed: new Set<number>(),
+    flagged: new Set<number>(),
+    adjacentCounts: calculateAdjacentCounts(uniqueIndices),
+    firstMovePending: true,
     takedaTroops: TAKEDA_MAX_TROOPS,
     enemyTroops: ENEMY_MAX_TROOPS,
     attackerIndex: 0,
@@ -150,6 +156,14 @@ export function adjacentEnemyCount(
   return count;
 }
 
+export function calculateAdjacentCounts(
+  enemyIndices: ReadonlySet<number>,
+): number[] {
+  return Array.from({ length: CELL_COUNT }, (_, index) =>
+    enemyIndices.has(index) ? -1 : adjacentEnemyCount(index, enemyIndices),
+  );
+}
+
 function adjacentIndices(index: number): number[] {
   const row = Math.floor(index / BOARD_SIZE);
   const column = index % BOARD_SIZE;
@@ -176,18 +190,103 @@ function adjacentIndices(index: number): number[] {
 function cloneBattle(battle: BattleState): BattleState & {
   enemyIndices: Set<number>;
   revealed: Set<number>;
+  flagged: Set<number>;
+  adjacentCounts: number[];
   logs: string[];
 } {
   return {
     ...battle,
     enemyIndices: new Set(battle.enemyIndices),
     revealed: new Set(battle.revealed),
+    flagged: new Set(battle.flagged),
+    adjacentCounts: [...battle.adjacentCounts],
     logs: [...battle.logs],
   };
 }
 
 function criticalLabel(critical: boolean): string {
   return critical ? " 会心の一撃！" : "";
+}
+
+function finalizeFirstMoveLayout(
+  battle: ReturnType<typeof cloneBattle>,
+  firstIndex: number,
+  random: () => number,
+): void {
+  if (battle.enemyIndices.has(firstIndex)) {
+    const candidates = Array.from({ length: CELL_COUNT }, (_, index) => index).filter(
+      (index) => index !== firstIndex && !battle.enemyIndices.has(index),
+    );
+    const destination =
+      candidates[
+        Math.floor(Math.min(0.999999, Math.max(0, random())) * candidates.length)
+      ];
+    battle.enemyIndices.delete(firstIndex);
+    battle.enemyIndices.add(destination);
+  }
+
+  battle.adjacentCounts = calculateAdjacentCounts(battle.enemyIndices);
+  battle.firstMovePending = false;
+}
+
+function collectSafeExpansion(
+  battle: ReturnType<typeof cloneBattle>,
+  startIndex: number,
+): number[] {
+  const opened: number[] = [];
+  const queue = [startIndex];
+  const queued = new Set(queue);
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (
+      current === undefined ||
+      battle.revealed.has(current) ||
+      battle.enemyIndices.has(current) ||
+      battle.flagged.has(current)
+    ) {
+      continue;
+    }
+
+    battle.revealed.add(current);
+    opened.push(current);
+
+    if (battle.adjacentCounts[current] === 0) {
+      for (const neighbor of adjacentIndices(current)) {
+        if (
+          !queued.has(neighbor) &&
+          !battle.revealed.has(neighbor) &&
+          !battle.enemyIndices.has(neighbor) &&
+          !battle.flagged.has(neighbor)
+        ) {
+          queued.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+  }
+
+  return opened;
+}
+
+export function toggleFlag(battle: BattleState, index: number): BattleState {
+  if (
+    battle.result ||
+    battle.revealed.has(index) ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= CELL_COUNT
+  ) {
+    return battle;
+  }
+
+  const next = cloneBattle(battle);
+  if (next.flagged.has(index)) {
+    next.flagged.delete(index);
+  } else {
+    next.flagged.add(index);
+  }
+  return next;
 }
 
 export function openCell(
@@ -198,6 +297,7 @@ export function openCell(
   if (
     battle.result ||
     battle.revealed.has(index) ||
+    battle.flagged.has(index) ||
     !Number.isInteger(index) ||
     index < 0 ||
     index >= CELL_COUNT
@@ -207,6 +307,10 @@ export function openCell(
 
   const next = cloneBattle(battle);
   const events: BattleEvent[] = [];
+
+  if (next.firstMovePending) {
+    finalizeFirstMoveLayout(next, index, random);
+  }
 
   if (next.enemyIndices.has(index)) {
     next.revealed.add(index);
@@ -243,20 +347,10 @@ export function openCell(
     return { battle: next, events };
   }
 
-  const queue = [index];
-  const queued = new Set(queue);
+  const openedSafeIndices = collectSafeExpansion(next, index);
 
-  while (queue.length && !next.result) {
-    const current = queue.shift();
-    if (
-      current === undefined ||
-      next.revealed.has(current) ||
-      next.enemyIndices.has(current)
-    ) {
-      continue;
-    }
-
-    next.revealed.add(current);
+  for (const current of openedSafeIndices) {
+    if (next.result) break;
     next.combo += 1;
     next.morale = Math.min(MAX_MORALE, next.morale + 12);
 
@@ -297,18 +391,6 @@ export function openCell(
       break;
     }
 
-    if (adjacentEnemyCount(current, next.enemyIndices) === 0) {
-      for (const neighbor of adjacentIndices(current)) {
-        if (
-          !queued.has(neighbor) &&
-          !next.revealed.has(neighbor) &&
-          !next.enemyIndices.has(neighbor)
-        ) {
-          queued.add(neighbor);
-          queue.push(neighbor);
-        }
-      }
-    }
   }
 
   return { battle: next, events };

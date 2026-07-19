@@ -5,10 +5,12 @@ import {
   ENEMY_MAX_TROOPS,
   TAKEDA_WARRIORS,
   adjacentEnemyCount,
+  calculateAdjacentCounts,
   calculateDamage,
   comboDamageBonus,
   createBattle,
   openCell,
+  toggleFlag,
 } from "../game-logic";
 
 const enemyCells = [0, 7, 35] as const;
@@ -56,6 +58,35 @@ describe("1-1 国境の砦", () => {
     expect(adjacentEnemyCount(1, enemies)).toBe(3);
   });
 
+  it("敵配置確定後に全36マスの隣接数を再計算する", () => {
+    const counts = calculateAdjacentCounts(new Set([0, 2, 7]));
+    expect(counts).toHaveLength(36);
+    expect(counts[0]).toBe(-1);
+    expect(counts[1]).toBe(3);
+    expect(counts[35]).toBe(0);
+  });
+
+  it.each([
+    { name: "数字1", enemies: [0, 34, 35], cell: 1, expected: 1 },
+    { name: "数字2", enemies: [0, 2, 35], cell: 1, expected: 2 },
+    { name: "数字3", enemies: [0, 2, 7], cell: 1, expected: 3 },
+  ])("$nameを含む配置を正しく生成する", ({ enemies, cell, expected }) => {
+    const battle = createBattle(Math.random, enemies);
+    expect(battle.adjacentCounts[cell]).toBe(expected);
+  });
+
+  it("最初に敵マスを選んでも再配置して安全マスにする", () => {
+    const initial = createBattle(Math.random, enemyCells);
+    const outcome = openCell(initial, 0, noCriticalAverage());
+    expect(outcome.battle.enemyIndices.has(0)).toBe(false);
+    expect(outcome.battle.revealed.has(0)).toBe(true);
+    expect(outcome.events[0].type).toBe("takeda-attack");
+    expect(outcome.battle.firstMovePending).toBe(false);
+    expect(outcome.battle.adjacentCounts).toEqual(
+      calculateAdjacentCounts(outcome.battle.enemyIndices),
+    );
+  });
+
   it("安全マスごとに攻撃・ローテーション・士気・連撃を進める", () => {
     const initial = createBattle(Math.random, enemyCells);
     const outcome = openCell(initial, 1, noCriticalAverage());
@@ -69,7 +100,7 @@ describe("1-1 国境の砦", () => {
   });
 
   it("敵マスでは千野頼満が現在担当武将の防御へ攻撃し順番を進めない", () => {
-    const initial = createBattle(Math.random, enemyCells);
+    const initial = { ...createBattle(Math.random, enemyCells), firstMovePending: false };
     const outcome = openCell(initial, 0, noCriticalAverage());
     expect(outcome.events[0].type).toBe("chino-attack");
     expect(outcome.events[0].warriorName).toBe("武田晴信");
@@ -81,7 +112,7 @@ describe("1-1 国境の砦", () => {
   });
 
   it("開いた敵マスは再攻撃せず、敵を自動討ち取りしない", () => {
-    const initial = createBattle(Math.random, enemyCells);
+    const initial = { ...createBattle(Math.random, enemyCells), firstMovePending: false };
     const first = openCell(initial, 0, noCriticalAverage()).battle;
     const second = openCell(first, 0, noCriticalAverage());
     expect(second.events).toEqual([]);
@@ -95,6 +126,7 @@ describe("1-1 国境の砦", () => {
       ...createBattle(Math.random, enemyCells),
       combo: 4,
       attackerIndex: 3,
+      firstMovePending: false,
     };
     const outcome = openCell(initial, 7, noCriticalAverage());
     expect(outcome.battle.combo).toBe(0);
@@ -107,6 +139,17 @@ describe("1-1 国境の砦", () => {
     const outcome = openCell(initial, 35, noCriticalAverage());
     expect(outcome.battle.revealed.size).toBeGreaterThan(1);
     expect([...outcome.battle.revealed].some((index) => clusteredEnemies.includes(index as 0 | 1 | 6))).toBe(false);
+    expect(outcome.battle.revealed.has(7)).toBe(true);
+    expect(outcome.battle.adjacentCounts[7]).toBe(3);
+  });
+
+  it("旗マスは隣接数に影響せず開封もしない", () => {
+    const initial = createBattle(Math.random, enemyCells);
+    const countsBefore = [...initial.adjacentCounts];
+    const flagged = toggleFlag(initial, 1);
+    expect(flagged.flagged.has(1)).toBe(true);
+    expect(flagged.adjacentCounts).toEqual(countsBefore);
+    expect(openCell(flagged, 1, noCriticalAverage()).events).toEqual([]);
   });
 
   it("武田軍攻撃は敵軍総兵士数と千野頼満部隊兵士数の共通値を減らす", () => {
@@ -133,6 +176,7 @@ describe("1-1 国境の砦", () => {
       ...createBattle(Math.random, enemyCells),
       takedaTroops: 10,
       attackerIndex: 0,
+      firstMovePending: false,
     };
     const outcome = openCell(initial, 0, noCriticalAverage());
     expect(defender.defense).toBe(230);
