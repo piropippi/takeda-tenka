@@ -213,27 +213,17 @@ function finalizeFirstMoveLayout(
   firstIndex: number,
   random: () => number,
 ): void {
-  if (battle.enemyIndices.has(firstIndex)) {
+  const safeZone = new Set([firstIndex, ...adjacentIndices(firstIndex)]);
+  const enemiesToMove = [...battle.enemyIndices].filter((index) => safeZone.has(index));
+
+  for (const source of enemiesToMove) {
     const candidates = Array.from({ length: CELL_COUNT }, (_, index) => index).filter(
-      (index) => index !== firstIndex && !battle.enemyIndices.has(index),
+      (index) => !safeZone.has(index) && !battle.enemyIndices.has(index),
     );
     const destination =
       candidates[
         Math.floor(Math.min(0.999999, Math.max(0, random())) * candidates.length)
       ];
-    battle.enemyIndices.delete(firstIndex);
-    battle.enemyIndices.add(destination);
-  }
-
-  const neighbors = adjacentIndices(firstIndex);
-  const hasAdjacentEnemy = neighbors.some((index) => battle.enemyIndices.has(index));
-  if (!hasAdjacentEnemy) {
-    const destinations = neighbors.filter((index) => !battle.enemyIndices.has(index));
-    const destination =
-      destinations[
-        Math.floor(Math.min(0.999999, Math.max(0, random())) * destinations.length)
-      ];
-    const source = [...battle.enemyIndices][0];
     battle.enemyIndices.delete(source);
     battle.enemyIndices.add(destination);
   }
@@ -361,9 +351,7 @@ export function openCell(
   }
 
   const openedSafeIndices = collectSafeExpansion(next, index);
-
-  for (const current of openedSafeIndices) {
-    if (next.result) break;
+  if (openedSafeIndices.length > 0) {
     next.combo += 1;
     next.morale = Math.min(MAX_MORALE, next.morale + 12);
 
@@ -401,9 +389,7 @@ export function openCell(
         damage: 0,
         critical: false,
       });
-      break;
     }
-
   }
 
   return { battle: next, events };

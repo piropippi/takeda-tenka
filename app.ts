@@ -193,7 +193,7 @@ function renderBattle(): void {
 
       <div class="battle-instruction">
         <strong>${battle.result ? resultInstruction(battle.result) : "未開封マスを選べ"}</strong>
-        <span>${battle.firstMovePending ? "最初の一手は必ず数字付き安全マス" : "安全マスは攻撃、敵マスは千野頼満の反撃"}</span>
+        <span>${battle.firstMovePending ? "最初の一手で安全地帯と複数の数字を展開" : "数字から敵マスの位置を推理せよ"}</span>
       </div>
 
       <div class="board-toolbar">

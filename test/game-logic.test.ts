@@ -75,28 +75,41 @@ describe("1-1 国境の砦", () => {
     expect(battle.adjacentCounts[cell]).toBe(expected);
   });
 
-  it("最初に敵マスを選んでも再配置して安全マスにする", () => {
+  it("初手の周囲8マスから敵を除外して0の安全地帯を展開する", () => {
     const initial = createBattle(Math.random, enemyCells);
     const outcome = openCell(initial, 0, noCriticalAverage());
     expect(outcome.battle.enemyIndices.has(0)).toBe(false);
     expect(outcome.battle.revealed.has(0)).toBe(true);
-    expect(outcome.battle.revealed.size).toBe(1);
-    expect(outcome.battle.adjacentCounts[0]).toBeGreaterThan(0);
+    expect(outcome.battle.revealed.size).toBeGreaterThan(1);
+    expect(outcome.battle.adjacentCounts[0]).toBe(0);
+    expect(
+      [...outcome.battle.revealed].filter(
+        (index) => outcome.battle.adjacentCounts[index] > 0,
+      ).length,
+    ).toBeGreaterThan(1);
+    expect(
+      [...outcome.battle.enemyIndices].some((index) =>
+        new Set([0, 1, 6, 7]).has(index),
+      ),
+    ).toBe(false);
     expect(outcome.events[0].type).toBe("takeda-attack");
+    expect(outcome.events).toHaveLength(1);
     expect(outcome.battle.firstMovePending).toBe(false);
     expect(outcome.battle.adjacentCounts).toEqual(
       calculateAdjacentCounts(outcome.battle.enemyIndices),
     );
   });
 
-  it("最初に0マスを選んでも敵を隣接位置へ移して数字を表示する", () => {
+  it("初手の0展開では複数マスを開いても攻撃は1回だけにする", () => {
     const initial = createBattle(Math.random, [29, 34, 35]);
     expect(initial.adjacentCounts[0]).toBe(0);
     const outcome = openCell(initial, 0, noCriticalAverage());
-    expect(outcome.battle.adjacentCounts[0]).toBeGreaterThanOrEqual(1);
-    expect(outcome.battle.adjacentCounts[0]).toBeLessThanOrEqual(3);
-    expect(outcome.battle.revealed).toEqual(new Set([0]));
+    expect(outcome.battle.adjacentCounts[0]).toBe(0);
+    expect(outcome.battle.revealed.size).toBeGreaterThan(1);
     expect(outcome.events).toHaveLength(1);
+    expect(outcome.battle.attackerIndex).toBe(1);
+    expect(outcome.battle.combo).toBe(1);
+    expect(outcome.battle.morale).toBe(12);
   });
 
   it("安全マスごとに攻撃・ローテーション・士気・連撃を進める", () => {
