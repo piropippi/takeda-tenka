@@ -225,6 +225,19 @@ function finalizeFirstMoveLayout(
     battle.enemyIndices.add(destination);
   }
 
+  const neighbors = adjacentIndices(firstIndex);
+  const hasAdjacentEnemy = neighbors.some((index) => battle.enemyIndices.has(index));
+  if (!hasAdjacentEnemy) {
+    const destinations = neighbors.filter((index) => !battle.enemyIndices.has(index));
+    const destination =
+      destinations[
+        Math.floor(Math.min(0.999999, Math.max(0, random())) * destinations.length)
+      ];
+    const source = [...battle.enemyIndices][0];
+    battle.enemyIndices.delete(source);
+    battle.enemyIndices.add(destination);
+  }
+
   battle.adjacentCounts = calculateAdjacentCounts(battle.enemyIndices);
   battle.firstMovePending = false;
 }

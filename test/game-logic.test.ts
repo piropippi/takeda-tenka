@@ -80,11 +80,23 @@ describe("1-1 国境の砦", () => {
     const outcome = openCell(initial, 0, noCriticalAverage());
     expect(outcome.battle.enemyIndices.has(0)).toBe(false);
     expect(outcome.battle.revealed.has(0)).toBe(true);
+    expect(outcome.battle.revealed.size).toBe(1);
+    expect(outcome.battle.adjacentCounts[0]).toBeGreaterThan(0);
     expect(outcome.events[0].type).toBe("takeda-attack");
     expect(outcome.battle.firstMovePending).toBe(false);
     expect(outcome.battle.adjacentCounts).toEqual(
       calculateAdjacentCounts(outcome.battle.enemyIndices),
     );
+  });
+
+  it("最初に0マスを選んでも敵を隣接位置へ移して数字を表示する", () => {
+    const initial = createBattle(Math.random, [29, 34, 35]);
+    expect(initial.adjacentCounts[0]).toBe(0);
+    const outcome = openCell(initial, 0, noCriticalAverage());
+    expect(outcome.battle.adjacentCounts[0]).toBeGreaterThanOrEqual(1);
+    expect(outcome.battle.adjacentCounts[0]).toBeLessThanOrEqual(3);
+    expect(outcome.battle.revealed).toEqual(new Set([0]));
+    expect(outcome.events).toHaveLength(1);
   });
 
   it("安全マスごとに攻撃・ローテーション・士気・連撃を進める", () => {
@@ -135,7 +147,10 @@ describe("1-1 国境の砦", () => {
 
   it("0マスから敵以外の周辺安全マスを自動展開する", () => {
     const clusteredEnemies = [0, 1, 6] as const;
-    const initial = createBattle(Math.random, clusteredEnemies);
+    const initial = {
+      ...createBattle(Math.random, clusteredEnemies),
+      firstMovePending: false,
+    };
     const outcome = openCell(initial, 35, noCriticalAverage());
     expect(outcome.battle.revealed.size).toBeGreaterThan(1);
     expect([...outcome.battle.revealed].some((index) => clusteredEnemies.includes(index as 0 | 1 | 6))).toBe(false);
