@@ -6,16 +6,16 @@
 
 ## 開発環境
 
-- Unity 6.0 LTS（6000.0.77f1）
+- Unity 6.3 LTS（6000.3.20f1）
 - 2D
 - 対象プラットフォーム: iOS / Android
 - 画面方向: 縦固定
 
 ## 開き方
 
-1. Unity HubにUnity 6.0 LTS（6000.0.77f1）をインストールします。
+1. Unity HubにUnity 6.3 LTS（6000.3.20f1）をインストールします。
 2. Unity Hubの「Add project from disk」で、このリポジトリのルートを選択します。
-3. `Assets/Scenes/Main.unity` を開きます。
+3. `Assets/Scenes/TitleScene.unity` を開きます。
 
 ## ディレクトリ
 
@@ -31,10 +31,12 @@ docs/           仕様・設計ドキュメント
 
 ## 現在の状態
 
-- Unity 6用プロジェクト設定
+- Unity 6.3 LTS用プロジェクト設定
 - 2Dパッケージ構成
 - iOS / Android向け縦画面設定
-- 空の開始シーン
+- 戦国風の仮タイトル画面
+- 第一章「諏訪攻略」の章選択画面
+- 「はじめから」によるタイトル画面から章選択画面への遷移
 - Git管理設定
 
 ゲーム内容は、今後 `docs/` の仕様を確定してから実装します。
