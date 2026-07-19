@@ -240,7 +240,8 @@ function armyGauge(
 
 function enemyMark(enemyNumber: number, battle: BattleState): string {
   const enemyIndices = [...battle.enemyIndices];
-  const opened = battle.revealed.has(enemyIndices[enemyNumber]);
+  const enemyIndex = enemyIndices[enemyNumber];
+  const opened = enemyIndex !== undefined && battle.revealed.has(enemyIndex);
   return `<i class="${opened ? "opened" : ""}" title="敵マス${enemyNumber + 1}">${opened ? "開" : "伏"}</i>`;
 }
 

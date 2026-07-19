@@ -62,24 +62,15 @@ export interface BattleState {
   logs: readonly string[];
 }
 
-function shuffledEnemyIndices(random: () => number): number[] {
-  const candidates = Array.from({ length: CELL_COUNT }, (_, index) => index);
-  for (let index = candidates.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.min(0.999999, Math.max(0, random())) * (index + 1));
-    [candidates[index], candidates[randomIndex]] = [candidates[randomIndex], candidates[index]];
-  }
-  return candidates.slice(0, ENEMY_CELL_COUNT);
-}
-
 export function createBattle(
-  random: () => number = Math.random,
+  _random: () => number = Math.random,
   fixedEnemyIndices?: readonly number[],
 ): BattleState {
-  const indices = fixedEnemyIndices ?? shuffledEnemyIndices(random);
+  const indices = fixedEnemyIndices ?? [];
   const uniqueIndices = new Set(
     indices.filter((index) => Number.isInteger(index) && index >= 0 && index < CELL_COUNT),
   );
-  if (uniqueIndices.size !== ENEMY_CELL_COUNT) {
+  if (fixedEnemyIndices !== undefined && uniqueIndices.size !== ENEMY_CELL_COUNT) {
     throw new Error(`敵マスは重複なしで${ENEMY_CELL_COUNT}マス必要です。`);
   }
 
@@ -88,7 +79,7 @@ export function createBattle(
     revealed: new Set<number>(),
     flagged: new Set<number>(),
     adjacentCounts: calculateAdjacentCounts(uniqueIndices),
-    firstMovePending: true,
+    firstMovePending: fixedEnemyIndices === undefined,
     takedaTroops: TAKEDA_MAX_TROOPS,
     enemyTroops: ENEMY_MAX_TROOPS,
     attackerIndex: 0,
@@ -208,35 +199,14 @@ function criticalLabel(critical: boolean): string {
   return critical ? " 会心の一撃！" : "";
 }
 
-function finalizeFirstMoveLayout(
-  battle: ReturnType<typeof cloneBattle>,
-  firstIndex: number,
-  random: () => number,
-): void {
-  const safeZone = new Set([firstIndex, ...adjacentIndices(firstIndex)]);
-  const enemiesToMove = [...battle.enemyIndices].filter((index) => safeZone.has(index));
-
-  for (const source of enemiesToMove) {
-    const candidates = Array.from({ length: CELL_COUNT }, (_, index) => index).filter(
-      (index) => !safeZone.has(index) && !battle.enemyIndices.has(index),
-    );
-    const destination =
-      candidates[
-        Math.floor(Math.min(0.999999, Math.max(0, random())) * candidates.length)
-      ];
-    battle.enemyIndices.delete(source);
-    battle.enemyIndices.add(destination);
-  }
-
-  battle.adjacentCounts = calculateAdjacentCounts(battle.enemyIndices);
-  battle.firstMovePending = false;
-}
-
-function collectSafeExpansion(
-  battle: ReturnType<typeof cloneBattle>,
+function safeExpansionIndices(
   startIndex: number,
+  enemyIndices: ReadonlySet<number>,
+  adjacentCounts: readonly number[],
+  blocked: ReadonlySet<number> = new Set<number>(),
 ): number[] {
   const opened: number[] = [];
+  const openedSet = new Set<number>();
   const queue = [startIndex];
   const queued = new Set(queue);
 
@@ -244,23 +214,22 @@ function collectSafeExpansion(
     const current = queue.shift();
     if (
       current === undefined ||
-      battle.revealed.has(current) ||
-      battle.enemyIndices.has(current) ||
-      battle.flagged.has(current)
+      openedSet.has(current) ||
+      enemyIndices.has(current) ||
+      blocked.has(current)
     ) {
       continue;
     }
 
-    battle.revealed.add(current);
+    openedSet.add(current);
     opened.push(current);
 
-    if (battle.adjacentCounts[current] === 0) {
+    if (adjacentCounts[current] === 0) {
       for (const neighbor of adjacentIndices(current)) {
         if (
           !queued.has(neighbor) &&
-          !battle.revealed.has(neighbor) &&
-          !battle.enemyIndices.has(neighbor) &&
-          !battle.flagged.has(neighbor)
+          !enemyIndices.has(neighbor) &&
+          !blocked.has(neighbor)
         ) {
           queued.add(neighbor);
           queue.push(neighbor);
@@ -269,6 +238,79 @@ function collectSafeExpansion(
     }
   }
 
+  return opened;
+}
+
+function isBalancedEnemyLayout(indices: readonly number[]): boolean {
+  const rows = indices.map((index) => Math.floor(index / BOARD_SIZE));
+  const columns = indices.map((index) => index % BOARD_SIZE);
+  const rowSpread = Math.max(...rows) - Math.min(...rows);
+  const columnSpread = Math.max(...columns) - Math.min(...columns);
+  const edgeCount = indices.filter((index) => {
+    const row = Math.floor(index / BOARD_SIZE);
+    const column = index % BOARD_SIZE;
+    return row === 0 || row === BOARD_SIZE - 1 || column === 0 || column === BOARD_SIZE - 1;
+  }).length;
+  return rowSpread >= 2 && columnSpread >= 2 && edgeCount <= 2;
+}
+
+export function generateFirstMoveEnemyIndices(
+  firstIndex: number,
+  random: () => number = Math.random,
+): Set<number> {
+  const safeZone = new Set([firstIndex, ...adjacentIndices(firstIndex)]);
+  const candidates = Array.from({ length: CELL_COUNT }, (_, index) => index).filter(
+    (index) => !safeZone.has(index),
+  );
+  const validLayouts: number[][] = [];
+
+  for (let first = 0; first < candidates.length - 2; first += 1) {
+    for (let second = first + 1; second < candidates.length - 1; second += 1) {
+      for (let third = second + 1; third < candidates.length; third += 1) {
+        const layout = [candidates[first], candidates[second], candidates[third]];
+        if (!isBalancedEnemyLayout(layout)) continue;
+        const enemies = new Set(layout);
+        const counts = calculateAdjacentCounts(enemies);
+        const expansionSize = safeExpansionIndices(firstIndex, enemies, counts).length;
+        if (expansionSize >= 6 && expansionSize <= 12) {
+          validLayouts.push(layout);
+        }
+      }
+    }
+  }
+
+  if (validLayouts.length === 0) {
+    throw new Error("初手を局所展開できる敵配置が見つかりません。");
+  }
+
+  const roll = Math.min(0.999999, Math.max(0, random()));
+  return new Set(validLayouts[Math.floor(roll * validLayouts.length)]);
+}
+
+function finalizeFirstMoveLayout(
+  battle: ReturnType<typeof cloneBattle>,
+  firstIndex: number,
+  random: () => number,
+): void {
+  battle.enemyIndices = generateFirstMoveEnemyIndices(firstIndex, random);
+  battle.adjacentCounts = calculateAdjacentCounts(battle.enemyIndices);
+  battle.firstMovePending = false;
+}
+
+function collectSafeExpansion(
+  battle: ReturnType<typeof cloneBattle>,
+  startIndex: number,
+): number[] {
+  const expansion = safeExpansionIndices(
+    startIndex,
+    battle.enemyIndices,
+    battle.adjacentCounts,
+    battle.flagged,
+  );
+  const opened = expansion.filter((index) => !battle.revealed.has(index));
+  for (const index of opened) {
+    battle.revealed.add(index);
+  }
   return opened;
 }
 

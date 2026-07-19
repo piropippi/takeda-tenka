@@ -9,6 +9,7 @@ import {
   calculateDamage,
   comboDamageBonus,
   createBattle,
+  generateFirstMoveEnemyIndices,
   openCell,
   toggleFlag,
 } from "../game-logic";
@@ -76,11 +77,15 @@ describe("1-1 国境の砦", () => {
   });
 
   it("初手の周囲8マスから敵を除外して0の安全地帯を展開する", () => {
-    const initial = createBattle(Math.random, enemyCells);
+    const initial = createBattle();
     const outcome = openCell(initial, 0, noCriticalAverage());
+    const firstSafeZone = new Set([0, 1, 6, 7]);
+    expect(initial.enemyIndices.size).toBe(0);
     expect(outcome.battle.enemyIndices.has(0)).toBe(false);
+    expect(outcome.battle.enemyIndices.size).toBe(3);
     expect(outcome.battle.revealed.has(0)).toBe(true);
-    expect(outcome.battle.revealed.size).toBeGreaterThan(1);
+    expect(outcome.battle.revealed.size).toBeGreaterThanOrEqual(6);
+    expect(outcome.battle.revealed.size).toBeLessThanOrEqual(12);
     expect(outcome.battle.adjacentCounts[0]).toBe(0);
     expect(
       [...outcome.battle.revealed].filter(
@@ -88,9 +93,7 @@ describe("1-1 国境の砦", () => {
       ).length,
     ).toBeGreaterThan(1);
     expect(
-      [...outcome.battle.enemyIndices].some((index) =>
-        new Set([0, 1, 6, 7]).has(index),
-      ),
+      [...outcome.battle.enemyIndices].some((index) => firstSafeZone.has(index)),
     ).toBe(false);
     expect(outcome.events[0].type).toBe("takeda-attack");
     expect(outcome.events).toHaveLength(1);
@@ -101,15 +104,34 @@ describe("1-1 国境の砦", () => {
   });
 
   it("初手の0展開では複数マスを開いても攻撃は1回だけにする", () => {
-    const initial = createBattle(Math.random, [29, 34, 35]);
-    expect(initial.adjacentCounts[0]).toBe(0);
-    const outcome = openCell(initial, 0, noCriticalAverage());
-    expect(outcome.battle.adjacentCounts[0]).toBe(0);
-    expect(outcome.battle.revealed.size).toBeGreaterThan(1);
+    const initial = createBattle();
+    const outcome = openCell(initial, 14, noCriticalAverage());
+    expect(outcome.battle.adjacentCounts[14]).toBe(0);
+    expect(outcome.battle.revealed.size).toBeGreaterThanOrEqual(6);
+    expect(outcome.battle.revealed.size).toBeLessThanOrEqual(12);
     expect(outcome.events).toHaveLength(1);
     expect(outcome.battle.attackerIndex).toBe(1);
     expect(outcome.battle.combo).toBe(1);
     expect(outcome.battle.morale).toBe(12);
+  });
+
+  it.each(Array.from({ length: 36 }, (_, index) => index))(
+    "初手セル%dからの展開を6～12マスに抑える",
+    (firstIndex) => {
+      const outcome = openCell(createBattle(), firstIndex, noCriticalAverage());
+      expect(outcome.battle.adjacentCounts[firstIndex]).toBe(0);
+      expect(outcome.battle.enemyIndices.size).toBe(3);
+      expect(outcome.battle.revealed.size).toBeGreaterThanOrEqual(6);
+      expect(outcome.battle.revealed.size).toBeLessThanOrEqual(12);
+      expect(outcome.events).toHaveLength(1);
+    },
+  );
+
+  it("同じ初手でも敵配置と局所展開にランダム性を持たせる", () => {
+    const layouts = Array.from({ length: 10 }, (_, index) =>
+      [...generateFirstMoveEnemyIndices(14, () => index / 10)].sort((a, b) => a - b).join(","),
+    );
+    expect(new Set(layouts).size).toBeGreaterThan(1);
   });
 
   it("安全マスごとに攻撃・ローテーション・士気・連撃を進める", () => {
