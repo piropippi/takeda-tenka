@@ -1,0 +1,20 @@
+{
+  "name": "武田晴信 天下統一伝",
+  "short_name": "天下統一伝",
+  "description": "マインスイーパー×戦国合戦のスマートフォン向けゲーム",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0e12",
+  "theme_color": "#17191d",
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

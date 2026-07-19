@@ -1,4 +1,17 @@
-# Unity generated folders
+# Local tooling
+/outputs/
+/work/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Web tooling
+node_modules/
+dist/
+.vite/
+*.log
+
+# Unity-generated folders retained under legacy-unity
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -8,18 +21,9 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 [Rr]ecordings/
-
-# Asset Store Tools
-/Assets/AssetStoreTools*
-
-# IDE and editor files
-.vs/
-.vscode/
-.idea/
 *.csproj
 *.sln
 *.suo
-*.tmp
 *.user
 *.userprefs
 *.pidb
@@ -29,22 +33,6 @@
 *.mdb
 *.opendb
 *.VC.db
-
-# Unity crash reports and generated packages
-sysinfo.txt
-crashlytics-build.properties
-/Assets/Plugins/Editor/JetBrains*
-
-# Mobile build artifacts
 *.apk
 *.aab
 *.ipa
-
-# OS files
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# Codex local working folders
-/outputs/
-/work/
